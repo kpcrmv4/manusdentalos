@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { trpc } from '@/lib/trpc';
 
 // VAPID public key - ในการใช้งานจริงควรเก็บใน environment variable
-const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+const VAPID_PUBLIC_KEY = 'BJ24FXfGk3hgMuUkdljrvt-aIw6Nai6sdlNZ9zF0oJAE_dIgDw3OQY_MpOmrVRwNt_E1BvTIqw8gA2n_1R8t-F8';
 
 function urlBase64ToUint8Array(base64String: string): BufferSource {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
