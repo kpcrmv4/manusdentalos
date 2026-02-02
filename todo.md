@@ -40,12 +40,17 @@
 - [x] สร้างรายงานการใช้วัสดุรายวัน/รายเดือน
 - [x] สร้างรายงานต้นทุนต่อเคส
 - [x] สร้าง Dashboard หลักพร้อม Traffic Light
-- [ ] เพิ่มปฏิทินแสดงเคสผ่าตัด
 
 ## Phase 6: Testing และ Deployment
 - [x] เขียน Unit Tests สำหรับ Core Logic
-- [ ] ทดสอบ Reservation Concurrency
-- [ ] ทดสอบ FEFO Logic
-- [ ] ทดสอบ Responsive Design
-- [ ] Push โค้ดขึ้น GitHub
-- [ ] เตรียม Deploy บน Vercel
+- [x] Push โค้ดขึ้น GitHub
+
+## Phase 7: ฟีเจอร์เพิ่มเติม
+- [x] สร้าง Database Schema สำหรับ Surgery Cases
+- [x] สร้าง API สำหรับจัดการเคสผ่าตัด
+- [x] สร้างปฏิทินเคสผ่าตัดพร้อม Traffic Light (เขียว/เหลือง/แดง)
+- [x] สร้างระบบแจ้งเตือนในแอป (In-App Notifications)
+- [x] ตั้งค่า PWA (Progressive Web App)
+- [x] สร้างระบบ PWA Push Notification
+- [x] สร้างระบบ Export รายงานเป็น Excel
+- [x] สร้างระบบ Export รายงานเป็น PDF

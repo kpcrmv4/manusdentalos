@@ -13,12 +13,17 @@ import {
   usageLogs,
   auditLogs,
   notifications,
+  surgeryCases,
+  surgeryCaseMaterials,
+  pushSubscriptions,
   type Category,
   type Product,
   type Supplier,
   type InventoryLot,
   type PurchaseOrder,
   type Reservation,
+  type SurgeryCase,
+  type SurgeryCaseMaterial,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -544,4 +549,197 @@ export async function getExpiringSoonLots(daysAhead: number = 30) {
       )
     )
     .orderBy(asc(inventoryLots.expiryDate));
+}
+
+
+// ==================== Surgery Cases ====================
+
+export async function getAllSurgeryCases(filters?: {
+  startDate?: Date;
+  endDate?: Date;
+  status?: string;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let query = db.select().from(surgeryCases);
+  
+  const conditions = [];
+  if (filters?.startDate) {
+    conditions.push(gte(surgeryCases.surgeryDate, filters.startDate));
+  }
+  if (filters?.endDate) {
+    conditions.push(lte(surgeryCases.surgeryDate, filters.endDate));
+  }
+  if (filters?.status) {
+    conditions.push(eq(surgeryCases.status, filters.status as any));
+  }
+  
+  if (conditions.length > 0) {
+    return await db.select().from(surgeryCases).where(and(...conditions)).orderBy(asc(surgeryCases.surgeryDate));
+  }
+  
+  return await db.select().from(surgeryCases).orderBy(asc(surgeryCases.surgeryDate));
+}
+
+export async function getSurgeryCaseById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(surgeryCases).where(eq(surgeryCases.id, id)).limit(1);
+  return result[0];
+}
+
+export async function getSurgeryCaseByNumber(caseNumber: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(surgeryCases).where(eq(surgeryCases.caseNumber, caseNumber)).limit(1);
+  return result[0];
+}
+
+export async function createSurgeryCase(data: {
+  caseNumber: string;
+  patientName: string;
+  patientId?: string;
+  surgeryDate: Date;
+  surgeryType?: string;
+  dentistName?: string;
+  notes?: string;
+  createdBy?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(surgeryCases).values(data);
+  return result;
+}
+
+export async function updateSurgeryCase(id: number, data: Partial<SurgeryCase>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(surgeryCases).set(data).where(eq(surgeryCases.id, id));
+}
+
+export async function getSurgeryCaseMaterials(caseId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select().from(surgeryCaseMaterials).where(eq(surgeryCaseMaterials.caseId, caseId));
+}
+
+export async function addSurgeryCaseMaterial(data: {
+  caseId: number;
+  productId: number;
+  requiredQty: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const values = {
+    ...data,
+    requiredQty: data.requiredQty.toString(),
+    reservedQty: "0",
+    usedQty: "0",
+  };
+  
+  const result = await db.insert(surgeryCaseMaterials).values(values);
+  return result;
+}
+
+export async function updateSurgeryCaseMaterial(id: number, data: Partial<SurgeryCaseMaterial>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(surgeryCaseMaterials).set(data).where(eq(surgeryCaseMaterials.id, id));
+}
+
+export async function calculateCaseMaterialStatus(caseId: number): Promise<'green' | 'yellow' | 'red'> {
+  const db = await getDb();
+  if (!db) return 'red';
+  
+  const materials = await getSurgeryCaseMaterials(caseId);
+  
+  if (materials.length === 0) return 'red';
+  
+  let allReserved = true;
+  let someReserved = false;
+  
+  for (const material of materials) {
+    const reserved = parseFloat(material.reservedQty || "0");
+    const required = parseFloat(material.requiredQty || "0");
+    
+    if (reserved >= required) {
+      someReserved = true;
+    } else {
+      allReserved = false;
+    }
+  }
+  
+  if (allReserved) return 'green';
+  if (someReserved) return 'yellow';
+  return 'red';
+}
+
+// ==================== Push Subscriptions ====================
+
+export async function savePushSubscription(data: {
+  userId: number;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if subscription already exists
+  const existing = await db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.endpoint, data.endpoint))
+    .limit(1);
+  
+  if (existing.length > 0) {
+    // Update existing
+    await db.update(pushSubscriptions)
+      .set({ isActive: true, updatedAt: new Date() })
+      .where(eq(pushSubscriptions.id, existing[0].id));
+    return existing[0];
+  }
+  
+  const result = await db.insert(pushSubscriptions).values(data);
+  return result;
+}
+
+export async function getUserPushSubscriptions(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(pushSubscriptions)
+    .where(
+      and(
+        eq(pushSubscriptions.userId, userId),
+        eq(pushSubscriptions.isActive, true)
+      )
+    );
+}
+
+export async function deletePushSubscription(endpoint: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(pushSubscriptions)
+    .set({ isActive: false })
+    .where(eq(pushSubscriptions.endpoint, endpoint));
+}
+
+export async function getAllActivePushSubscriptions() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.isActive, true));
 }

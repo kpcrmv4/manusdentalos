@@ -240,6 +240,70 @@ export const notifications = mysqlTable("notifications", {
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
 
+/**
+ * เคสผ่าตัด (Surgery Cases)
+ */
+export const surgeryCases = mysqlTable("surgeryCases", {
+  id: int("id").autoincrement().primaryKey(),
+  caseNumber: varchar("caseNumber", { length: 100 }).notNull().unique(),
+  patientName: varchar("patientName", { length: 255 }).notNull(),
+  patientId: varchar("patientId", { length: 100 }),
+  surgeryDate: timestamp("surgeryDate").notNull(),
+  surgeryType: varchar("surgeryType", { length: 255 }),
+  dentistName: varchar("dentistName", { length: 255 }),
+  status: mysqlEnum("status", ["planned", "materials_ready", "materials_partial", "in_progress", "completed", "cancelled"]).default("planned").notNull(),
+  materialStatus: mysqlEnum("materialStatus", ["green", "yellow", "red"]).default("red").notNull(),
+  notes: text("notes"),
+  createdBy: int("createdBy").references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  caseNumberIdx: index("caseNumber_idx").on(table.caseNumber),
+  surgeryDateIdx: index("surgeryDate_idx").on(table.surgeryDate),
+  statusIdx: index("status_idx").on(table.status),
+}));
+
+export type SurgeryCase = typeof surgeryCases.$inferSelect;
+export type InsertSurgeryCase = typeof surgeryCases.$inferInsert;
+
+/**
+ * วัสดุที่ต้องใช้ในเคสผ่าตัด (Surgery Case Materials)
+ */
+export const surgeryCaseMaterials = mysqlTable("surgeryCaseMaterials", {
+  id: int("id").autoincrement().primaryKey(),
+  caseId: int("caseId").notNull().references(() => surgeryCases.id, { onDelete: "cascade" }),
+  productId: int("productId").notNull().references(() => products.id),
+  requiredQty: decimal("requiredQty", { precision: 10, scale: 2 }).notNull(),
+  reservedQty: decimal("reservedQty", { precision: 10, scale: 2 }).notNull().default("0"),
+  usedQty: decimal("usedQty", { precision: 10, scale: 2 }).notNull().default("0"),
+  status: mysqlEnum("status", ["pending", "reserved", "used"]).default("pending").notNull(),
+  reservationId: int("reservationId").references(() => reservations.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SurgeryCaseMaterial = typeof surgeryCaseMaterials.$inferSelect;
+export type InsertSurgeryCaseMaterial = typeof surgeryCaseMaterials.$inferInsert;
+
+/**
+ * PWA Push Subscriptions
+ */
+export const pushSubscriptions = mysqlTable("pushSubscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().references(() => users.id),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdIdx: index("userId_idx").on(table.userId),
+}));
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = typeof pushSubscriptions.$inferInsert;
+
 // Relations
 export const productsRelations = relations(products, ({ one, many }) => ({
   category: one(categories, {
@@ -307,6 +371,37 @@ export const usageLogsRelations = relations(usageLogs, ({ one }) => ({
   }),
   loggedByUser: one(users, {
     fields: [usageLogs.loggedBy],
+    references: [users.id],
+  }),
+}));
+
+
+export const surgeryCasesRelations = relations(surgeryCases, ({ one, many }) => ({
+  createdByUser: one(users, {
+    fields: [surgeryCases.createdBy],
+    references: [users.id],
+  }),
+  materials: many(surgeryCaseMaterials),
+}));
+
+export const surgeryCaseMaterialsRelations = relations(surgeryCaseMaterials, ({ one }) => ({
+  surgeryCase: one(surgeryCases, {
+    fields: [surgeryCaseMaterials.caseId],
+    references: [surgeryCases.id],
+  }),
+  product: one(products, {
+    fields: [surgeryCaseMaterials.productId],
+    references: [products.id],
+  }),
+  reservation: one(reservations, {
+    fields: [surgeryCaseMaterials.reservationId],
+    references: [reservations.id],
+  }),
+}));
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.userId],
     references: [users.id],
   }),
 }));

@@ -40,10 +40,11 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-import { FolderTree } from "lucide-react";
+import { FolderTree, CalendarDays } from "lucide-react";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
+  { icon: CalendarDays, label: "ปฏิทินเคสผ่าตัด", path: "/calendar" },
   { icon: Package, label: "จัดการสินค้า", path: "/products" },
   { icon: FolderTree, label: "หมวดหมู่สินค้า", path: "/categories" },
   { icon: Boxes, label: "จัดการสต็อก", path: "/inventory" },

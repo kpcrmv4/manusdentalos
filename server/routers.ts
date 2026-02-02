@@ -441,6 +441,218 @@ export const appRouter = router({
         await db.markNotificationAsRead(input.id);
         return { success: true };
       }),
+    create: protectedProcedure
+      .input(z.object({
+        type: z.enum(['low_stock', 'expiring_soon', 'expired', 'pending_order', 'slow_moving']),
+        title: z.string(),
+        message: z.string(),
+        relatedTable: z.string().optional(),
+        relatedId: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.createNotification({
+          ...input,
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+  }),
+
+  // ==================== Surgery Cases ====================
+  surgeryCases: router({
+    list: protectedProcedure
+      .input(z.object({
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        status: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await db.getAllSurgeryCases(input);
+      }),
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const surgeryCase = await db.getSurgeryCaseById(input.id);
+        if (!surgeryCase) return null;
+        
+        const materials = await db.getSurgeryCaseMaterials(input.id);
+        return { ...surgeryCase, materials };
+      }),
+    create: protectedProcedure
+      .input(z.object({
+        caseNumber: z.string().min(1),
+        patientName: z.string().min(1),
+        patientId: z.string().optional(),
+        surgeryDate: z.date(),
+        surgeryType: z.string().optional(),
+        dentistName: z.string().optional(),
+        notes: z.string().optional(),
+        materials: z.array(z.object({
+          productId: z.number(),
+          requiredQty: z.number(),
+        })).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { materials, ...caseData } = input;
+        
+        // สร้างเคส
+        await db.createSurgeryCase({
+          ...caseData,
+          createdBy: ctx.user.id,
+        });
+        
+        // หาเคสที่เพิ่งสร้าง
+        const createdCase = await db.getSurgeryCaseByNumber(input.caseNumber);
+        const caseId = createdCase?.id || 0;
+        
+        // เพิ่มวัสดุที่ต้องใช้
+        if (materials && materials.length > 0) {
+          for (const material of materials) {
+            await db.addSurgeryCaseMaterial({
+              caseId,
+              productId: material.productId,
+              requiredQty: material.requiredQty,
+            });
+          }
+        }
+        
+        // คำนวณสถานะวัสดุ
+        const materialStatus = await db.calculateCaseMaterialStatus(caseId);
+        await db.updateSurgeryCase(caseId, { materialStatus });
+        
+        await db.createAuditLog({
+          tableName: 'surgeryCases',
+          recordId: caseId,
+          action: 'create',
+          newValues: JSON.stringify(input),
+          userId: ctx.user.id,
+        });
+        
+        return { success: true, caseId };
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        patientName: z.string().optional(),
+        patientId: z.string().optional(),
+        surgeryDate: z.date().optional(),
+        surgeryType: z.string().optional(),
+        dentistName: z.string().optional(),
+        status: z.enum(['planned', 'materials_ready', 'materials_partial', 'in_progress', 'completed', 'cancelled']).optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        await db.updateSurgeryCase(id, data);
+        
+        await db.createAuditLog({
+          tableName: 'surgeryCases',
+          recordId: id,
+          action: 'update',
+          newValues: JSON.stringify(data),
+          userId: ctx.user.id,
+        });
+        
+        return { success: true };
+      }),
+    addMaterial: protectedProcedure
+      .input(z.object({
+        caseId: z.number(),
+        productId: z.number(),
+        requiredQty: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.addSurgeryCaseMaterial(input);
+        
+        // อัปเดตสถานะวัสดุ
+        const materialStatus = await db.calculateCaseMaterialStatus(input.caseId);
+        await db.updateSurgeryCase(input.caseId, { materialStatus });
+        
+        return { success: true };
+      }),
+    reserveMaterials: protectedProcedure
+      .input(z.object({ caseId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const materials = await db.getSurgeryCaseMaterials(input.caseId);
+        const surgeryCase = await db.getSurgeryCaseById(input.caseId);
+        
+        if (!surgeryCase) {
+          throw new Error('ไม่พบข้อมูลเคสนี้');
+        }
+        
+        for (const material of materials) {
+          if (material.status === 'pending') {
+            const requiredQty = parseFloat(material.requiredQty);
+            
+            // หา lots ที่มีสินค้าพอ (FEFO)
+            const availableLots = await db.getAvailableLotsFEFO(material.productId, requiredQty);
+            
+            let remainingQty = requiredQty;
+            for (const lot of availableLots) {
+              if (remainingQty <= 0) break;
+              
+              const availableQty = parseFloat(lot.availableQty);
+              const qtyToReserve = Math.min(availableQty, remainingQty);
+              
+              // สร้าง reservation
+              await db.createReservation({
+                lotId: lot.id,
+                reservedQty: qtyToReserve,
+                reservedBy: ctx.user.id,
+                reservedFor: `เคส ${surgeryCase.caseNumber}`,
+                patientName: surgeryCase.patientName,
+                surgeryDate: surgeryCase.surgeryDate,
+              });
+              
+              // อัปเดต lot
+              const newAvailableQty = availableQty - qtyToReserve;
+              const newReservedQty = parseFloat(lot.reservedQty) + qtyToReserve;
+              await db.updateInventoryLot(lot.id, {
+                availableQty: newAvailableQty.toString(),
+                reservedQty: newReservedQty.toString(),
+              });
+              
+              remainingQty -= qtyToReserve;
+            }
+            
+            // อัปเดตสถานะวัสดุในเคส
+            const reservedQty = requiredQty - remainingQty;
+            await db.updateSurgeryCaseMaterial(material.id, {
+              reservedQty: reservedQty.toString(),
+              status: reservedQty >= requiredQty ? 'reserved' : 'pending',
+            });
+          }
+        }
+        
+        // อัปเดตสถานะวัสดุของเคส
+        const materialStatus = await db.calculateCaseMaterialStatus(input.caseId);
+        await db.updateSurgeryCase(input.caseId, { materialStatus });
+        
+        return { success: true, materialStatus };
+      }),
+  }),
+
+  // ==================== Push Subscriptions ====================
+  pushSubscriptions: router({
+    subscribe: protectedProcedure
+      .input(z.object({
+        endpoint: z.string(),
+        p256dh: z.string(),
+        auth: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.savePushSubscription({
+          userId: ctx.user.id,
+          ...input,
+        });
+        return { success: true };
+      }),
+    unsubscribe: protectedProcedure
+      .input(z.object({ endpoint: z.string() }))
+      .mutation(async ({ input }) => {
+        await db.deletePushSubscription(input.endpoint);
+        return { success: true };
+      }),
   }),
 });
 

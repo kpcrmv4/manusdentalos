@@ -15,6 +15,7 @@ import Categories from "./pages/Categories";
 import LowStock from "./pages/LowStock";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
+import Calendar from "./pages/Calendar";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/reports" component={Reports} />
       <Route path="/notifications" component={Notifications} />
       <Route path="/settings" component={Settings} />
+      <Route path="/calendar" component={Calendar} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
