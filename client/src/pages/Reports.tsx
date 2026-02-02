@@ -22,9 +22,103 @@ export default function Reports() {
   const { data: products } = trpc.products.list.useQuery();
   const { data: inventory } = trpc.inventory.list.useQuery();
 
+  const exportToCSV = (data: any[], filename: string, headers: string[]) => {
+    if (!data || data.length === 0) {
+      toast.error("ไม่มีข้อมูลให้ส่งออก");
+      return;
+    }
+
+    const csvRows = [headers.join(',')];
+    data.forEach(row => {
+      const values = headers.map(header => {
+        const value = row[header] ?? '';
+        // Escape commas and quotes
+        const escaped = String(value).replace(/"/g, '""');
+        return `"${escaped}"`;
+      });
+      csvRows.push(values.join(','));
+    });
+
+    const csvContent = '\ufeff' + csvRows.join('\n'); // BOM for Thai characters
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+
+    toast.success("ส่งออกข้อมูลเรียบร้อยแล้ว");
+  };
+
+  const handleExportReceipt = () => {
+    if (!inventory || inventory.length === 0) {
+      toast.error("ไม่มีข้อมูลการรับเข้า");
+      return;
+    }
+
+    const exportData = inventory.map(lot => {
+      const product = products?.find(p => p.id === lot.productId);
+      return {
+        'วันที่รับ': lot.receivedDate ? new Date(lot.receivedDate).toLocaleDateString('th-TH') : '-',
+        'เลขที่ Invoice': lot.invoiceNo || '-',
+        'สินค้า': product?.name || '-',
+        'รหัสสินค้า': product?.productCode || '-',
+        'Lot No.': lot.lotNumber,
+        'จำนวน': lot.physicalQty,
+        'ราคา/หน่วย': lot.costPrice || '0',
+        'รวม': (parseFloat(lot.physicalQty) * parseFloat(lot.costPrice || '0')).toFixed(2),
+      };
+    });
+
+    exportToCSV(exportData, 'receipt-report', Object.keys(exportData[0]));
+  };
+
+  const handleExportStock = () => {
+    if (!products || products.length === 0) {
+      toast.error("ไม่มีข้อมูลสต็อก");
+      return;
+    }
+
+    const exportData = products.map(product => {
+      const productLots = inventory?.filter((lot: any) => lot.productId === product.id) || [];
+      const totalPhysical = productLots.reduce((sum: number, lot: typeof productLots[0]) => sum + parseFloat(lot.physicalQty), 0);
+      const totalReserved = productLots.reduce((sum: number, lot: typeof productLots[0]) => sum + parseFloat(lot.reservedQty), 0);
+      const totalAvailable = productLots.reduce((sum: number, lot: typeof productLots[0]) => sum + parseFloat(lot.availableQty), 0);
+      const totalValue = productLots.reduce((sum: number, lot: typeof productLots[0]) => sum + (parseFloat(lot.physicalQty) * parseFloat(lot.costPrice || "0")), 0);
+      const category = categories?.find(c => c.id === product.categoryId);
+
+      return {
+        'รหัสสินค้า': product.productCode,
+        'ชื่อสินค้า': product.name,
+        'หมวดหมู่': category?.name || '-',
+        'หน่วย': product.unit,
+        'จำนวน Lot': productLots.length,
+        'คงเหลือรวม': totalPhysical,
+        'จองแล้ว': totalReserved,
+        'พร้อมใช้': totalAvailable,
+        'มูลค่า (บาท)': totalValue.toFixed(2),
+      };
+    });
+
+    exportToCSV(exportData, 'stock-report', Object.keys(exportData[0]));
+  };
+
   const handleExport = (reportType: string) => {
-    toast.info(`กำลังส่งออกรายงาน ${reportType}...`);
-    // TODO: Implement export functionality
+    switch (reportType) {
+      case 'receipt':
+        handleExportReceipt();
+        break;
+      case 'stock':
+        handleExportStock();
+        break;
+      case 'usage':
+        toast.info("กรุณาไปที่หน้า 'บันทึกการใช้วัสดุ' เพื่อส่งออกรายงาน");
+        break;
+      case 'cost':
+        toast.info("กรุณาไปที่หน้า 'Admin Dashboard' เพื่อดูรายงานต้นทุน");
+        break;
+      default:
+        toast.error("ไม่รู้จักประเภทรายงาน");
+    }
   };
 
   return (

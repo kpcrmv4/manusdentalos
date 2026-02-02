@@ -16,11 +16,15 @@ import LowStock from "./pages/LowStock";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
 import Calendar from "./pages/Calendar";
+import UsageLog from "./pages/UsageLog";
+import AdminDashboard from "./pages/AdminDashboard";
+import UserManagement from "./pages/UserManagement";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/admin" component={AdminDashboard} />
       <Route path="/products" component={Products} />
       <Route path="/categories" component={Categories} />
       <Route path="/inventory" component={Inventory} />
@@ -28,10 +32,12 @@ function Router() {
       <Route path="/purchase-orders" component={PurchaseOrders} />
       <Route path="/goods-receipt" component={GoodsReceipt} />
       <Route path="/low-stock" component={LowStock} />
+      <Route path="/usage-log" component={UsageLog} />
       <Route path="/reports" component={Reports} />
       <Route path="/notifications" component={Notifications} />
       <Route path="/settings" component={Settings} />
       <Route path="/calendar" component={Calendar} />
+      <Route path="/users" component={UserManagement} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

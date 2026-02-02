@@ -191,8 +191,8 @@
 
 ## Database Schema
 
-### Tables Created (11 ตาราง)
-1. ✅ `users` - ข้อมูลผู้ใช้
+### Tables Created (14 ตาราง)
+1. ✅ `users` - ข้อมูลผู้ใช้ (พร้อม RBAC 4 Roles: Admin/Manager/Assistant/Viewer)
 2. ✅ `categories` - หมวดหมู่สินค้า
 3. ✅ `products` - สินค้า
 4. ✅ `suppliers` - ซัพพลายเออร์
@@ -204,7 +204,8 @@
 10. ✅ `auditLogs` - บันทึกประวัติ
 11. ✅ `notifications` - การแจ้งเตือน
 12. ✅ `surgeryCases` - เคสผ่าตัด
-13. ✅ `pwaSubscriptions` - PWA Push Subscriptions
+13. ✅ `surgeryCaseMaterials` - วัสดุที่ใช้ในเคสผ่าตัด
+14. ✅ `pushSubscriptions` - PWA Push Subscriptions
 
 ---
 
@@ -259,27 +260,46 @@
 ### Notifications
 - ✅ `notifications.list` - ดูรายการแจ้งเตือน
 - ✅ `notifications.markAsRead` - ทำเครื่องหมายว่าอ่านแล้ว
-- ✅ `notifications.subscribe` - สมัครรับ PWA Push
+- ✅ `notifications.create` - สร้างแจ้งเตือน
+
+### Push Subscriptions
+- ✅ `pushSubscriptions.subscribe` - สมัครรับ PWA Push
+- ✅ `pushSubscriptions.unsubscribe` - ยกเลิกรับ PWA Push
+
+### Users (User Management)
+- ✅ `users.list` - ดูรายการผู้ใช้
+- ✅ `users.getById` - ดูข้อมูลผู้ใช้
+- ✅ `users.update` - แก้ไขผู้ใช้
+- ✅ `users.delete` - ปิดใช้งานผู้ใช้
+
+### Audit Logs
+- ✅ `auditLogs.list` - ดูรายการ Activity Log
+- ✅ `auditLogs.search` - ค้นหา Activity Log
+
+### Dashboard Stats
+- ✅ `dashboard.stats` - ดูสถิติภาพรวม
+- ✅ `dashboard.monthlyCost` - รายงานต้นทุนรายเดือน
 
 ---
 
-## Pages Implemented (15 หน้า)
+## Pages Implemented (16 หน้า)
 
 1. ✅ **Home** - แดชบอร์ดหลัก
-2. ✅ **Admin Dashboard** - แดชบอร์ดผู้บริหาร
-3. ✅ **Calendar** - ปฏิทินเคสผ่าตัด
-4. ✅ **Products** - จัดการสินค้า
-5. ✅ **Categories** - จัดการหมวดหมู่
-6. ✅ **Inventory** - จัดการสต็อก
-7. ✅ **Usage Log** - บันทึกการใช้วัสดุ
-8. ✅ **Suppliers** - จัดการซัพพลายเออร์
-9. ✅ **Purchase Orders** - จัดการใบสั่งซื้อ
+2. ✅ **Admin Dashboard** - แดชบอร์ดผู้บริหาร (KPI, ต้นทุน, Activity Log)
+3. ✅ **Calendar** - ปฏิทินเคสผ่าตัด (Traffic Light System)
+4. ✅ **Products** - จัดการสินค้า (CRUD)
+5. ✅ **Categories** - จัดการหมวดหมู่ (CRUD)
+6. ✅ **Inventory** - จัดการสต็อก (Lot Management, FEFO)
+7. ✅ **Usage Log** - บันทึกการใช้วัสดุ (Photo Evidence)
+8. ✅ **Suppliers** - จัดการซัพพลายเออร์ (CRUD)
+9. ✅ **Purchase Orders** - จัดการใบสั่งซื้อ (CRUD)
 10. ✅ **Goods Receipt** - รับของเข้าคลัง
-11. ✅ **Low Stock** - สินค้าใกล้หมด
-12. ✅ **Reports** - รายงาน
+11. ✅ **Low Stock** - สินค้าใกล้หมด & ใกล้หมดอายุ
+12. ✅ **Reports** - รายงาน (Export CSV)
 13. ✅ **Notifications** - การแจ้งเตือน
-14. ✅ **Settings** - ตั้งค่าระบบ
-15. ✅ **DashboardLayout** - Layout หลัก
+14. ✅ **User Management** - จัดการผู้ใช้ (RBAC 4 Roles)
+15. ✅ **Settings** - ตั้งค่าระบบ (PWA Push)
+16. ✅ **DashboardLayout** - Layout หลัก (15 เมนู)
 
 ---
 

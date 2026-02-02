@@ -23,6 +23,11 @@ export const appRouter = router({
     list: protectedProcedure.query(async () => {
       return await db.getAllCategories();
     }),
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getCategoryById(input.id);
+      }),
     create: protectedProcedure
       .input(z.object({
         name: z.string().min(1),
@@ -35,6 +40,40 @@ export const appRouter = router({
           recordId: 0,
           action: 'create',
           newValues: JSON.stringify(input),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        const oldCategory = await db.getCategoryById(id);
+        await db.updateCategory(id, data);
+        await db.createAuditLog({
+          tableName: 'categories',
+          recordId: id,
+          action: 'update',
+          oldValues: JSON.stringify(oldCategory),
+          newValues: JSON.stringify(data),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const oldCategory = await db.getCategoryById(input.id);
+        await db.deleteCategory(input.id);
+        await db.createAuditLog({
+          tableName: 'categories',
+          recordId: input.id,
+          action: 'delete',
+          oldValues: JSON.stringify(oldCategory),
           userId: ctx.user.id,
         });
         return { success: true };
@@ -125,6 +164,20 @@ export const appRouter = router({
 
         return { success: true };
       }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const oldProduct = await db.getProductById(input.id);
+        await db.deleteProduct(input.id);
+        await db.createAuditLog({
+          tableName: 'products',
+          recordId: input.id,
+          action: 'delete',
+          oldValues: JSON.stringify(oldProduct),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
   }),
 
   // ==================== Suppliers ====================
@@ -158,6 +211,46 @@ export const appRouter = router({
           userId: ctx.user.id,
         });
 
+        return { success: true };
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        code: z.string().optional(),
+        name: z.string().optional(),
+        contactPerson: z.string().optional(),
+        phone: z.string().optional(),
+        email: z.string().email().optional(),
+        address: z.string().optional(),
+        leadTimeDays: z.number().optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        const oldSupplier = await db.getSupplierById(id);
+        await db.updateSupplier(id, data);
+        await db.createAuditLog({
+          tableName: 'suppliers',
+          recordId: id,
+          action: 'update',
+          oldValues: JSON.stringify(oldSupplier),
+          newValues: JSON.stringify(data),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const oldSupplier = await db.getSupplierById(input.id);
+        await db.deleteSupplier(input.id);
+        await db.createAuditLog({
+          tableName: 'suppliers',
+          recordId: input.id,
+          action: 'delete',
+          oldValues: JSON.stringify(oldSupplier),
+          userId: ctx.user.id,
+        });
         return { success: true };
       }),
   }),
@@ -219,6 +312,20 @@ export const appRouter = router({
 
   // ==================== Reservations ====================
   reservations: router({
+    list: protectedProcedure
+      .input(z.object({
+        status: z.enum(['active', 'committed', 'cancelled']).optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await db.getAllReservations(input);
+      }),
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getReservationById(input.id);
+      }),
     create: protectedProcedure
       .input(z.object({
         lotId: z.number(),
@@ -425,6 +532,224 @@ export const appRouter = router({
         });
 
         return { success: true, poId };
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        expectedDeliveryDate: z.date().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        const oldPO = await db.getPurchaseOrderById(id);
+        await db.updatePurchaseOrder(id, data);
+        await db.createAuditLog({
+          tableName: 'purchaseOrders',
+          recordId: id,
+          action: 'update',
+          oldValues: JSON.stringify(oldPO),
+          newValues: JSON.stringify(data),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(['pending', 'partially_received', 'completed', 'cancelled']),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const oldPO = await db.getPurchaseOrderById(input.id);
+        await db.updatePurchaseOrder(input.id, { status: input.status });
+        await db.createAuditLog({
+          tableName: 'purchaseOrders',
+          recordId: input.id,
+          action: 'update',
+          oldValues: JSON.stringify(oldPO),
+          newValues: JSON.stringify({ status: input.status }),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const oldPO = await db.getPurchaseOrderById(input.id);
+        if (oldPO?.status !== 'pending') {
+          throw new Error('ไม่สามารถลบ PO ที่มีสถานะไม่ใช่ pending ได้');
+        }
+        await db.deletePurchaseOrder(input.id);
+        await db.createAuditLog({
+          tableName: 'purchaseOrders',
+          recordId: input.id,
+          action: 'delete',
+          oldValues: JSON.stringify(oldPO),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+  }),
+
+  // ==================== Usage Logs ====================
+  usageLogs: router({
+    list: protectedProcedure
+      .input(z.object({
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        lotId: z.number().optional(),
+        loggedBy: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await db.getAllUsageLogs(input);
+      }),
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getUsageLogById(input.id);
+      }),
+    getByCase: protectedProcedure
+      .input(z.object({ caseId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getUsageLogsByCase(input.caseId);
+      }),
+    getByProduct: protectedProcedure
+      .input(z.object({ productId: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getUsageLogsByProduct(input.productId);
+      }),
+    create: protectedProcedure
+      .input(z.object({
+        lotId: z.number(),
+        reservationId: z.number().optional(),
+        usedQty: z.number(),
+        patientName: z.string().optional(),
+        surgeryDate: z.date().optional(),
+        photoEvidence: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        // ตรวจสอบว่า lot มี qty พอหรือไม่
+        const lots = await db.getInventoryLotsByProduct(0);
+        const lot = lots.find(l => l.id === input.lotId);
+
+        if (!lot) {
+          throw new Error('ไม่พบข้อมูล Lot นี้');
+        }
+
+        const physicalQty = parseFloat(lot.physicalQty);
+        if (physicalQty < input.usedQty) {
+          throw new Error(`จำนวนไม่เพียงพอ (คงเหลือ ${physicalQty})`);
+        }
+
+        await db.createUsageLog({
+          ...input,
+          loggedBy: ctx.user.id,
+        });
+
+        await db.createAuditLog({
+          tableName: 'usageLogs',
+          recordId: 0,
+          action: 'create',
+          newValues: JSON.stringify(input),
+          userId: ctx.user.id,
+        });
+
+        return { success: true };
+      }),
+  }),
+
+  // ==================== Audit Logs ====================
+  auditLogs: router({
+    list: protectedProcedure
+      .input(z.object({
+        tableName: z.string().optional(),
+        action: z.enum(['create', 'update', 'delete']).optional(),
+        userId: z.number().optional(),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
+        limit: z.number().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await db.getAllAuditLogs(input);
+      }),
+    search: protectedProcedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ input }) => {
+        return await db.searchAuditLogs(input.query);
+      }),
+  }),
+
+  // ==================== Users ====================
+  users: router({
+    list: protectedProcedure
+      .input(z.object({
+        role: z.string().optional(),
+        isActive: z.boolean().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await db.getAllUsers(input);
+      }),
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return await db.getUserById(input.id);
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        avatar: z.string().optional(),
+        role: z.enum(['admin', 'manager', 'assistant', 'viewer']).optional(),
+        department: z.string().optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { id, ...data } = input;
+        const oldUser = await db.getUserById(id);
+        await db.updateUser(id, data);
+        await db.createAuditLog({
+          tableName: 'users',
+          recordId: id,
+          action: 'update',
+          oldValues: JSON.stringify(oldUser),
+          newValues: JSON.stringify(data),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        if (input.id === ctx.user.id) {
+          throw new Error('ไม่สามารถลบบัญชีของตัวเองได้');
+        }
+        const oldUser = await db.getUserById(input.id);
+        await db.deleteUser(input.id);
+        await db.createAuditLog({
+          tableName: 'users',
+          recordId: input.id,
+          action: 'delete',
+          oldValues: JSON.stringify(oldUser),
+          userId: ctx.user.id,
+        });
+        return { success: true };
+      }),
+  }),
+
+  // ==================== Dashboard Stats ====================
+  dashboard: router({
+    stats: protectedProcedure.query(async () => {
+      return await db.getDashboardStats();
+    }),
+    monthlyCost: protectedProcedure
+      .input(z.object({
+        year: z.number(),
+        month: z.number(),
+      }))
+      .query(async ({ input }) => {
+        return await db.getMonthlyCostReport(input.year, input.month);
       }),
   }),
 

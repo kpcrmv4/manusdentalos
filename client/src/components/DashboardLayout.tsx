@@ -21,10 +21,10 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { 
-  LayoutDashboard, 
-  LogOut, 
-  PanelLeft, 
+import {
+  LayoutDashboard,
+  LogOut,
+  PanelLeft,
   Package,
   Boxes,
   Users,
@@ -33,17 +33,21 @@ import {
   FileText,
   Settings,
   Bell,
-  TrendingDown
+  TrendingDown,
+  FolderTree,
+  CalendarDays,
+  BarChart3,
+  UserCog,
+  Syringe,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
-import { FolderTree, CalendarDays } from "lucide-react";
-
 const menuItems = [
   { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
+  { icon: BarChart3, label: "Admin Dashboard", path: "/admin" },
   { icon: CalendarDays, label: "ปฏิทินเคสผ่าตัด", path: "/calendar" },
   { icon: Package, label: "จัดการสินค้า", path: "/products" },
   { icon: FolderTree, label: "หมวดหมู่สินค้า", path: "/categories" },
@@ -52,8 +56,10 @@ const menuItems = [
   { icon: ShoppingCart, label: "ใบสั่งซื้อ", path: "/purchase-orders" },
   { icon: ClipboardList, label: "รับของเข้าคลัง", path: "/goods-receipt" },
   { icon: TrendingDown, label: "สินค้าใกล้หมด", path: "/low-stock" },
+  { icon: Syringe, label: "บันทึกการใช้วัสดุ", path: "/usage-log" },
   { icon: FileText, label: "รายงาน", path: "/reports" },
   { icon: Bell, label: "การแจ้งเตือน", path: "/notifications" },
+  { icon: UserCog, label: "จัดการผู้ใช้", path: "/users" },
   { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },
 ];
 
