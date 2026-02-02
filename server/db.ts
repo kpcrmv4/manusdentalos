@@ -1,7 +1,8 @@
-import { eq, and, or, like, desc, asc, sql, gte, lte, isNull } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { 
-  InsertUser, 
+import { eq, and, or, like, desc, asc, sql, gte, lte } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import {
+  InsertUser,
   users,
   categories,
   products,
@@ -28,11 +29,16 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _client: ReturnType<typeof postgres> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Use postgres.js driver for Supabase
+      _client = postgres(process.env.DATABASE_URL, {
+        prepare: false, // Required for Supabase Transaction Pooler
+      });
+      _db = drizzle(_client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -91,7 +97,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    // PostgreSQL upsert using ON CONFLICT
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -153,14 +161,14 @@ export async function updateUser(id: number, data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(users).set(data).where(eq(users.id, id));
+  await db.update(users).set({ ...data, updatedAt: new Date() }).where(eq(users.id, id));
 }
 
 export async function deleteUser(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   // Soft delete
-  await db.update(users).set({ isActive: false }).where(eq(users.id, id));
+  await db.update(users).set({ isActive: false, updatedAt: new Date() }).where(eq(users.id, id));
 }
 
 // ==================== Categories ====================
@@ -181,14 +189,14 @@ export async function getCategoryById(id: number) {
 export async function createCategory(data: { name: string; description?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(categories).values(data);
-  return result;
+  const result = await db.insert(categories).values(data).returning();
+  return result[0];
 }
 
 export async function updateCategory(id: number, data: { name?: string; description?: string }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(categories).set(data).where(eq(categories.id, id));
+  await db.update(categories).set({ ...data, updatedAt: new Date() }).where(eq(categories.id, id));
 }
 
 export async function deleteCategory(id: number) {
@@ -214,7 +222,7 @@ export async function deleteCategory(id: number) {
 export async function searchProducts(query: string) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const searchPattern = `%${query}%`;
   return await db
     .select()
@@ -248,11 +256,11 @@ export async function getProductByCode(productCode: string) {
 export async function getAllProducts(categoryId?: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   if (categoryId) {
     return await db.select().from(products).where(eq(products.categoryId, categoryId)).orderBy(asc(products.name));
   }
-  
+
   return await db.select().from(products).orderBy(asc(products.name));
 }
 
@@ -271,16 +279,16 @@ export async function createProduct(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const result = await db.insert(products).values(data);
-  return result;
+
+  const result = await db.insert(products).values(data).returning();
+  return result[0];
 }
 
 export async function updateProduct(id: number, data: Partial<Product>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.update(products).set(data).where(eq(products.id, id));
+  await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id));
 }
 
 export async function deleteProduct(id: number) {
@@ -296,7 +304,7 @@ export async function deleteProduct(id: number) {
 
   if (lots.length > 0) {
     // Soft delete โดยเปลี่ยน isActive เป็น false
-    await db.update(products).set({ isActive: false }).where(eq(products.id, id));
+    await db.update(products).set({ isActive: false, updatedAt: new Date() }).where(eq(products.id, id));
   } else {
     // Hard delete ถ้าไม่มี lots
     await db.delete(products).where(eq(products.id, id));
@@ -330,14 +338,14 @@ export async function createSupplier(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(suppliers).values(data);
-  return result;
+  const result = await db.insert(suppliers).values(data).returning();
+  return result[0];
 }
 
 export async function updateSupplier(id: number, data: Partial<Supplier>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(suppliers).set(data).where(eq(suppliers.id, id));
+  await db.update(suppliers).set({ ...data, updatedAt: new Date() }).where(eq(suppliers.id, id));
 }
 
 export async function deleteSupplier(id: number) {
@@ -345,7 +353,7 @@ export async function deleteSupplier(id: number) {
   if (!db) throw new Error("Database not available");
 
   // Soft delete โดยเปลี่ยน isActive เป็น false
-  await db.update(suppliers).set({ isActive: false }).where(eq(suppliers.id, id));
+  await db.update(suppliers).set({ isActive: false, updatedAt: new Date() }).where(eq(suppliers.id, id));
 }
 
 // ==================== Inventory Lots ====================
@@ -359,7 +367,7 @@ export async function getAllInventoryLots() {
 export async function getInventoryLotsByProduct(productId: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db
     .select()
     .from(inventoryLots)
@@ -370,7 +378,7 @@ export async function getInventoryLotsByProduct(productId: number) {
 export async function getAvailableLotsFEFO(productId: number, requiredQty: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   // FEFO: First-Expired, First-Out
   return await db
     .select()
@@ -378,7 +386,7 @@ export async function getAvailableLotsFEFO(productId: number, requiredQty: numbe
     .where(
       and(
         eq(inventoryLots.productId, productId),
-        sql`${inventoryLots.availableQty} > 0`
+        sql`CAST(${inventoryLots.availableQty} AS DECIMAL) > 0`
       )
     )
     .orderBy(asc(inventoryLots.expiryDate));
@@ -397,7 +405,7 @@ export async function createInventoryLot(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const values = {
     ...data,
     physicalQty: data.physicalQty.toString(),
@@ -405,16 +413,16 @@ export async function createInventoryLot(data: {
     reservedQty: "0",
     costPrice: data.costPrice?.toString(),
   };
-  
-  const result = await db.insert(inventoryLots).values(values);
-  return result;
+
+  const result = await db.insert(inventoryLots).values(values).returning();
+  return result[0];
 }
 
 export async function updateInventoryLot(id: number, data: Partial<InventoryLot>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(inventoryLots).set(data).where(eq(inventoryLots.id, id));
+
+  await db.update(inventoryLots).set({ ...data, updatedAt: new Date() }).where(eq(inventoryLots.id, id));
 }
 
 // ==================== Reservations ====================
@@ -460,14 +468,14 @@ export async function createReservation(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const values = {
     ...data,
     reservedQty: data.reservedQty.toString(),
   };
-  
-  const result = await db.insert(reservations).values(values);
-  return result;
+
+  const result = await db.insert(reservations).values(values).returning();
+  return result[0];
 }
 
 export async function getReservationById(id: number) {
@@ -480,14 +488,14 @@ export async function getReservationById(id: number) {
 export async function updateReservation(id: number, data: Partial<Reservation>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(reservations).set(data).where(eq(reservations.id, id));
+
+  await db.update(reservations).set({ ...data, updatedAt: new Date() }).where(eq(reservations.id, id));
 }
 
 export async function getActiveReservationsByLot(lotId: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db
     .select()
     .from(reservations)
@@ -504,7 +512,7 @@ export async function getActiveReservationsByLot(lotId: number) {
 export async function getAllPurchaseOrders(status?: string) {
   const db = await getDb();
   if (!db) return [];
-  
+
   if (status) {
     return await db
       .select()
@@ -512,7 +520,7 @@ export async function getAllPurchaseOrders(status?: string) {
       .where(eq(purchaseOrders.status, status as any))
       .orderBy(desc(purchaseOrders.orderDate));
   }
-  
+
   return await db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.orderDate));
 }
 
@@ -533,27 +541,27 @@ export async function createPurchaseOrder(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const values = {
     ...data,
     totalAmount: data.totalAmount?.toString(),
   };
-  
-  const result = await db.insert(purchaseOrders).values(values);
-  return result;
+
+  const result = await db.insert(purchaseOrders).values(values).returning();
+  return result[0];
 }
 
 export async function updatePurchaseOrder(id: number, data: Partial<PurchaseOrder>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(purchaseOrders).set(data).where(eq(purchaseOrders.id, id));
+
+  await db.update(purchaseOrders).set({ ...data, updatedAt: new Date() }).where(eq(purchaseOrders.id, id));
 }
 
 export async function getPurchaseOrderItems(poId: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db
     .select()
     .from(purchaseOrderItems)
@@ -578,8 +586,8 @@ export async function createPurchaseOrderItem(data: {
     totalPrice: data.totalPrice?.toString(),
   };
 
-  const result = await db.insert(purchaseOrderItems).values(values);
-  return result;
+  const result = await db.insert(purchaseOrderItems).values(values).returning();
+  return result[0];
 }
 
 export async function updatePurchaseOrderItem(id: number, data: {
@@ -589,7 +597,7 @@ export async function updatePurchaseOrderItem(id: number, data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const updateData: Record<string, string> = {};
+  const updateData: Record<string, any> = { updatedAt: new Date() };
   if (data.receivedQty !== undefined) {
     updateData.receivedQty = data.receivedQty.toString();
   }
@@ -757,7 +765,7 @@ export async function getUsageLogsByCase(caseId: number) {
   return await db
     .select()
     .from(usageLogs)
-    .where(sql`${usageLogs.reservationId} IN (${reservationIds.join(',')})`)
+    .where(sql`${usageLogs.reservationId} = ANY(ARRAY[${sql.raw(reservationIds.join(','))}]::int[])`)
     .orderBy(desc(usageLogs.createdAt));
 }
 
@@ -779,7 +787,7 @@ export async function createUsageLog(data: {
     usedQty: data.usedQty.toString(),
   };
 
-  const result = await db.insert(usageLogs).values(values);
+  const result = await db.insert(usageLogs).values(values).returning();
 
   // อัปเดต physical qty ของ lot
   const lot = await db
@@ -792,11 +800,11 @@ export async function createUsageLog(data: {
     const currentPhysicalQty = parseFloat(lot[0].physicalQty);
     const newPhysicalQty = currentPhysicalQty - data.usedQty;
     await db.update(inventoryLots)
-      .set({ physicalQty: newPhysicalQty.toString() })
+      .set({ physicalQty: newPhysicalQty.toString(), updatedAt: new Date() })
       .where(eq(inventoryLots.id, data.lotId));
   }
 
-  return result;
+  return result[0];
 }
 
 export async function getUsageLogsByProduct(productId: number) {
@@ -815,7 +823,7 @@ export async function getUsageLogsByProduct(productId: number) {
   return await db
     .select()
     .from(usageLogs)
-    .where(sql`${usageLogs.lotId} IN (${lotIds.join(',')})`)
+    .where(sql`${usageLogs.lotId} = ANY(ARRAY[${sql.raw(lotIds.join(','))}]::int[])`)
     .orderBy(desc(usageLogs.createdAt));
 }
 
@@ -848,8 +856,6 @@ export async function getAllAuditLogs(filters?: {
   if (filters?.endDate) {
     conditions.push(lte(auditLogs.createdAt, filters.endDate));
   }
-
-  let query = db.select().from(auditLogs);
 
   if (conditions.length > 0) {
     return await db
@@ -897,8 +903,8 @@ export async function createAuditLog(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const result = await db.insert(auditLogs).values(data);
-  return result;
+  const result = await db.insert(auditLogs).values(data).returning();
+  return result[0];
 }
 
 // ==================== Notifications ====================
@@ -913,15 +919,15 @@ export async function createNotification(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const result = await db.insert(notifications).values(data);
-  return result;
+
+  const result = await db.insert(notifications).values(data).returning();
+  return result[0];
 }
 
 export async function getUserNotifications(userId: number, unreadOnly: boolean = false) {
   const db = await getDb();
   if (!db) return [];
-  
+
   if (unreadOnly) {
     return await db
       .select()
@@ -934,7 +940,7 @@ export async function getUserNotifications(userId: number, unreadOnly: boolean =
       )
       .orderBy(desc(notifications.createdAt));
   }
-  
+
   return await db
     .select()
     .from(notifications)
@@ -945,7 +951,7 @@ export async function getUserNotifications(userId: number, unreadOnly: boolean =
 export async function markNotificationAsRead(id: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id));
 }
 
@@ -954,18 +960,18 @@ export async function markNotificationAsRead(id: number) {
 export async function getLowStockProducts() {
   const db = await getDb();
   if (!db) return [];
-  
+
   // Get products where total available quantity is below minStockLevel
   const result = await db
     .select({
       product: products,
-      totalAvailable: sql<number>`SUM(${inventoryLots.availableQty})`,
+      totalAvailable: sql<number>`COALESCE(SUM(CAST(${inventoryLots.availableQty} AS DECIMAL)), 0)`,
     })
     .from(products)
     .leftJoin(inventoryLots, eq(products.id, inventoryLots.productId))
     .groupBy(products.id)
-    .having(sql`SUM(${inventoryLots.availableQty}) < ${products.minStockLevel}`);
-  
+    .having(sql`COALESCE(SUM(CAST(${inventoryLots.availableQty} AS DECIMAL)), 0) < ${products.minStockLevel}`);
+
   return result;
 }
 
@@ -974,10 +980,10 @@ export async function getLowStockProducts() {
 export async function getExpiringSoonLots(daysAhead: number = 30) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + daysAhead);
-  
+
   return await db
     .select()
     .from(inventoryLots)
@@ -986,7 +992,7 @@ export async function getExpiringSoonLots(daysAhead: number = 30) {
         sql`${inventoryLots.expiryDate} IS NOT NULL`,
         lte(inventoryLots.expiryDate, futureDate),
         gte(inventoryLots.expiryDate, new Date()),
-        sql`${inventoryLots.availableQty} > 0`
+        sql`CAST(${inventoryLots.availableQty} AS DECIMAL) > 0`
       )
     )
     .orderBy(asc(inventoryLots.expiryDate));
@@ -1002,9 +1008,7 @@ export async function getAllSurgeryCases(filters?: {
 }) {
   const db = await getDb();
   if (!db) return [];
-  
-  let query = db.select().from(surgeryCases);
-  
+
   const conditions = [];
   if (filters?.startDate) {
     conditions.push(gte(surgeryCases.surgeryDate, filters.startDate));
@@ -1015,11 +1019,11 @@ export async function getAllSurgeryCases(filters?: {
   if (filters?.status) {
     conditions.push(eq(surgeryCases.status, filters.status as any));
   }
-  
+
   if (conditions.length > 0) {
     return await db.select().from(surgeryCases).where(and(...conditions)).orderBy(asc(surgeryCases.surgeryDate));
   }
-  
+
   return await db.select().from(surgeryCases).orderBy(asc(surgeryCases.surgeryDate));
 }
 
@@ -1049,22 +1053,22 @@ export async function createSurgeryCase(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  const result = await db.insert(surgeryCases).values(data);
-  return result;
+
+  const result = await db.insert(surgeryCases).values(data).returning();
+  return result[0];
 }
 
 export async function updateSurgeryCase(id: number, data: Partial<SurgeryCase>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(surgeryCases).set(data).where(eq(surgeryCases.id, id));
+
+  await db.update(surgeryCases).set({ ...data, updatedAt: new Date() }).where(eq(surgeryCases.id, id));
 }
 
 export async function getSurgeryCaseMaterials(caseId: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db.select().from(surgeryCaseMaterials).where(eq(surgeryCaseMaterials.caseId, caseId));
 }
 
@@ -1075,47 +1079,47 @@ export async function addSurgeryCaseMaterial(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   const values = {
     ...data,
     requiredQty: data.requiredQty.toString(),
     reservedQty: "0",
     usedQty: "0",
   };
-  
-  const result = await db.insert(surgeryCaseMaterials).values(values);
-  return result;
+
+  const result = await db.insert(surgeryCaseMaterials).values(values).returning();
+  return result[0];
 }
 
 export async function updateSurgeryCaseMaterial(id: number, data: Partial<SurgeryCaseMaterial>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.update(surgeryCaseMaterials).set(data).where(eq(surgeryCaseMaterials.id, id));
+
+  await db.update(surgeryCaseMaterials).set({ ...data, updatedAt: new Date() }).where(eq(surgeryCaseMaterials.id, id));
 }
 
 export async function calculateCaseMaterialStatus(caseId: number): Promise<'green' | 'yellow' | 'red'> {
   const db = await getDb();
   if (!db) return 'red';
-  
+
   const materials = await getSurgeryCaseMaterials(caseId);
-  
+
   if (materials.length === 0) return 'red';
-  
+
   let allReserved = true;
   let someReserved = false;
-  
+
   for (const material of materials) {
     const reserved = parseFloat(material.reservedQty || "0");
     const required = parseFloat(material.requiredQty || "0");
-    
+
     if (reserved >= required) {
       someReserved = true;
     } else {
       allReserved = false;
     }
   }
-  
+
   if (allReserved) return 'green';
   if (someReserved) return 'yellow';
   return 'red';
@@ -1131,14 +1135,14 @@ export async function savePushSubscription(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   // Check if subscription already exists
   const existing = await db
     .select()
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.endpoint, data.endpoint))
     .limit(1);
-  
+
   if (existing.length > 0) {
     // Update existing
     await db.update(pushSubscriptions)
@@ -1146,15 +1150,15 @@ export async function savePushSubscription(data: {
       .where(eq(pushSubscriptions.id, existing[0].id));
     return existing[0];
   }
-  
-  const result = await db.insert(pushSubscriptions).values(data);
-  return result;
+
+  const result = await db.insert(pushSubscriptions).values(data).returning();
+  return result[0];
 }
 
 export async function getUserPushSubscriptions(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db
     .select()
     .from(pushSubscriptions)
@@ -1169,16 +1173,16 @@ export async function getUserPushSubscriptions(userId: number) {
 export async function deletePushSubscription(endpoint: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
+
   await db.update(pushSubscriptions)
-    .set({ isActive: false })
+    .set({ isActive: false, updatedAt: new Date() })
     .where(eq(pushSubscriptions.endpoint, endpoint));
 }
 
 export async function getAllActivePushSubscriptions() {
   const db = await getDb();
   if (!db) return [];
-  
+
   return await db
     .select()
     .from(pushSubscriptions)
