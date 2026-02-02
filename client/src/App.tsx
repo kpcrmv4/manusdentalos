@@ -4,39 +4,42 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
 import Products from "./pages/Products";
 import Inventory from "./pages/Inventory";
 import Suppliers from "./pages/Suppliers";
 import PurchaseOrders from "./pages/PurchaseOrders";
+import GoodsReceipt from "./pages/GoodsReceipt";
+import Reports from "./pages/Reports";
+import Categories from "./pages/Categories";
+import LowStock from "./pages/LowStock";
+import Notifications from "./pages/Notifications";
+import Settings from "./pages/Settings";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/products" component={Products} />
+      <Route path="/categories" component={Categories} />
       <Route path="/inventory" component={Inventory} />
       <Route path="/suppliers" component={Suppliers} />
       <Route path="/purchase-orders" component={PurchaseOrders} />
+      <Route path="/goods-receipt" component={GoodsReceipt} />
+      <Route path="/low-stock" component={LowStock} />
+      <Route path="/reports" component={Reports} />
+      <Route path="/notifications" component={Notifications} />
+      <Route path="/settings" component={Settings} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
           <Router />

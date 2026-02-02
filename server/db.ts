@@ -236,6 +236,12 @@ export async function createSupplier(data: {
 
 // ==================== Inventory Lots ====================
 
+export async function getAllInventoryLots() {
+  const db = await getDb();
+  if (!db) return [];
+  return await db.select().from(inventoryLots).orderBy(asc(inventoryLots.expiryDate));
+}
+
 export async function getInventoryLotsByProduct(productId: number) {
   const db = await getDb();
   if (!db) return [];

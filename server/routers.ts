@@ -164,6 +164,9 @@ export const appRouter = router({
 
   // ==================== Inventory Lots ====================
   inventory: router({
+    list: protectedProcedure.query(async () => {
+      return await db.getAllInventoryLots();
+    }),
     getLotsByProduct: protectedProcedure
       .input(z.object({ productId: z.number() }))
       .query(async ({ input }) => {
